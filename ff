@@ -1,0 +1,110 @@
+from flask import Flask, request, render_template, send_file, redirect, url_for
+import os
+from werkzeug.utils import secure_filename
+
+app = Flask(__name__)
+UPLOAD_FOLDER = 'uploads'
+PROCESSED_FOLDER = 'processed'
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['PROCESSED_FOLDER'] = PROCESSED_FOLDER
+
+# Ensure upload and processed directories exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(PROCESSED_FOLDER, exist_ok=True)
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return "No file part in the request."
+    file = request.files['file']
+    if file.filename == '':
+        return "No file selected for uploading."
+    if file and file.filename.endswith('.doc'):
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+        return redirect(url_for('process_file', filename=filename))
+    return "Invalid file format. Only .doc files are allowed."
+
+@app.route('/process/<filename>')
+def process_file(filename):
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    processed_path = os.path.join(app.config['PROCESSED_FOLDER'], f"processed_{filename}")
+
+    # Simulate processing
+    with open(file_path, 'r', encoding='ISO-8859-1') as f:  # Read raw content
+        content = f.read()
+    
+    # Simple processing: Convert content to uppercase
+    with open(processed_path, 'w', encoding='ISO-8859-1') as f:
+        f.write(content.upper())
+
+    return redirect(url_for('download_file', filename=f"processed_{filename}"))
+
+@app.route('/download/<filename>')
+def download_file(filename):
+    file_path = os.path.join(app.config['PROCESSED_FOLDER'], filename)
+    return send_file(file_path, as_attachment=True)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload and Process .doc File</title>
+    <script>
+        function showProgress() {
+            let progressBar = document.getElementById("progress-bar");
+            progressBar.style.display = "block";
+
+            let width = 0;
+            let interval = setInterval(function () {
+                if (width >= 100) {
+                    clearInterval(interval);
+                } else {
+                    width++;
+                    document.getElementById("progress").style.width = width + "%";
+                    document.getElementById("progress").innerText = width + "%";
+                }
+            }, 30);
+        }
+    </script>
+    <style>
+        #progress-bar {
+            display: none;
+            width: 100%;
+            background-color: #f3f3f3;
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+        #progress {
+            width: 0;
+            height: 30px;
+            background-color: #4caf50;
+            color: white;
+            text-align: center;
+            line-height: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Upload and Process .doc File</h1>
+    <form action="/upload" method="post" enctype="multipart/form-data" onsubmit="showProgress()">
+        <input type="file" name="file" accept=".doc" required>
+        <button type="submit">Upload</button>
+    </form>
+
+    <div id="progress-bar">
+        <div id="progress">0%</div>
+    </div>
+</body>
+</html>
